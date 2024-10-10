@@ -1,0 +1,48 @@
+CO CFLAGS: la danh sach cac flag cua compiler. Nghia la include gcc se thuc hien tim kiem trong thu muc hien tai(,) de them file header
+-o $@ la tao ra output cua qua trinh bien dich trong tap tin ben trai dau : 
+$< la thanh phan dau tien trong danh sach dependency va CFLAGS la macro da duoc dinh nghia o dong 2
+
+
+
+Giải thích:
+Phony Targets:
+
+.PHONY: hello hellomake: Khai báo hello và hellomake là các target ảo (phony targets). Các target ảo không phải là các tập tin thực tế mà thường là các nhãn cho các nhiệm vụ trong Makefile.
+Biến:
+
+CC := gcc: Đặt biến CC là gcc, tức là trình biên dịch C sẽ là gcc.
+CFLAGS := -I.: Đặt CFLAGS là -I., cho phép bao gồm thư mục hiện tại (được ký hiệu là .) cho các tệp tiêu đề.
+Phụ thuộc (Dependencies):
+
+INC_FILES := hello.h: Liệt kê các tệp tiêu đề cần thiết để biên dịch.
+Quy tắc mẫu cho các tệp đối tượng (Pattern Rule for Object Files):
+
+%.o: %.c $(INC_FILES): Quy tắc này chỉ ra cách tạo ra các tệp đối tượng (*.o) từ các tệp nguồn C (*.c). Nó phụ thuộc vào tệp .c tương ứng và bất kỳ tệp tiêu đề nào được liệt kê trong $(INC_FILES).
+$(CC) -c -o $@ $<: Dòng này biên dịch mỗi tệp .c thành một tệp .o bằng gcc.
+Target hellomake:
+
+hellomake: main.o hello.o: Chỉ định rằng hellomake phụ thuộc vào các tệp main.o và hello.o.
+$(CC) -o $@ main.o hello.o $(CFLAGS): Liên kết main.o và hello.o thành một tập tin thực thi có tên là hellomake, sử dụng gcc với các cờ được chỉ định trong $(CFLAGS).
+Target hello:
+
+hello: Chỉ định một phương pháp biên dịch riêng để tạo ra một tệp thực thi hello.
+gcc -o hello main.c hello.c -I.: Biên dịch trực tiếp main.c và hello.c thành một tệp thực thi có tên là hello, bao gồm thư mục hiện tại cho các tệp tiêu đề.
+Target clean:
+
+clean: Dọn dẹp thư mục bằng cách xóa các tập tin thực thi đã tạo (hello và hellomake) và các tệp đối tượng (*.o).
+
+
+
+%.o: %.c $(INC_FILES)
+        $(CC) -c -o $@ $<
+
+Khi bạn chạy make, Make sẽ kiem tra xem liệu có bat kỳ tệp .c nào đã thay đoi so với các tệp đoi tượng .o hiện tại. Neu có, nó sẽ se  dụng quy tac này de biên dịch lại tệp dop tượng tương ứng. Ví dụ:
+
+Nếu main.c hoặc hello.c được chỉnh sửa, Make sẽ chạy lệnh gcc -c -o main.o main.c -I. và gcc -c -o hello.o hello.c -I. đe tạo lại main.o và hello.o.
+Quy tắc % .o: % .c là một trong những cách cơ bản và hiệu quả để tự động hóa quá trình biên dịch trong Makefile, đặc biệt là khi có nhiều tệp .c cần được biên dịch thành các tệp đối tượng độc lập.
+
+
+
+
+
+

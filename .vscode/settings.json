@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "stat.h": "c",
+        "stdarg.h": "c",
+        "stdio.h": "c",
+        "pthread.h": "c",
+        "typeinfo": "c",
+        "types.h": "c"
+    }
+}

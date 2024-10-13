@@ -46,6 +46,7 @@ void printlog(){
         printf("MODE_2: Catch And Handle The Signal\n");
         printf("    =>  FUNC_1: EXIT Automatic By SIGINT Or Crtl+C\n");
         printf("    =>  FUNC_2: Catch SIGINT Or Crtl+C\n");
+        printf("    =>  FUNC_3: Catch SIGKILL & SIGSTOP\n");
         printf("MODE_3: Ignore The Signal\n");
         printf("    =>  FUNC_1: Perform The Default Action\n");
         printf("    =>  FUNC_2: Perform The Default Action\n");
@@ -188,7 +189,7 @@ int main(int argc, char const *argv[]){
                             exit(EXIT_FAILURE);
                         }
                         for(int i=0;i<WAIT_NUMBER;i++){
-                            printf("Press Crtl+C (SIGINT) Or Waiting %ds To Call The Handle Function\n",WAIT_NUMBER-i);
+                            printf("Press Crtl+C (SIGINT) Or Waiting %ds To Call The Handler Function\n",WAIT_NUMBER-i);
                             sleep(1);
                         }
                         while(1){
@@ -198,6 +199,54 @@ int main(int argc, char const *argv[]){
                     }
                 }
             }
+                break;
+            case FUNC_3:
+            {
+                pid_t child_pid;
+                child_pid = fork();
+                if(child_pid>=0){
+                    if(child_pid==0){
+                        char pid_str[10];
+                        sprintf(pid_str, "%d",getppid());
+                        sleep(1); 
+                        for(int i=0;i<WAIT_NUMBER;i++){
+                            //execl("/bin/kill", "kill", "-2",pid_str,(char *)NULL);
+                            sleep(1); 
+                        }
+                        printf("SIGKILL or SIGSTOP\n");
+                        sleep(3); 
+                        execl("/bin/kill", "kill", "-9",pid_str,(char *)NULL);
+                    }
+                    else{
+                        printf("    =>  FUNC_3: Catch SIGKILL\n");
+                        if (signal(SIGINT, sig_handler2) == SIG_ERR) {
+                            fprintf(stderr, "Cannot handle SIGINT\n");
+                            exit(EXIT_FAILURE);
+                        }
+                        if (signal(SIGKILL, sig_handler2) == SIG_ERR) {
+                            fprintf(stderr, "Cannot handle SIGKILL\n");
+                        }
+                        if (signal(SIGSTOP, sig_handler2) == SIG_ERR) {
+                            fprintf(stderr, "Cannot handle SIGSTOP\n");
+                        }
+                        if (signal(SIGTERM, sig_handler2) == SIG_ERR) {
+                            fprintf(stderr, "Cannot handle SIGSTERM\n");
+                        }
+                        for(int i=0;i<WAIT_NUMBER;i++){
+                            printf("Press Crtl+C (SIGINT) or SIGTERM To Call The Handler Function\n");
+                            sleep(1);
+                        }
+                        while(1){
+                            printf("To Exit, Please Using Kill -9 %d\n",getpid());
+                            sleep(1);
+                        }
+                    }
+                }
+            }
+                break;
+            default:
+                printf("No Correct Value\n");
+                exit(EXIT_FAILURE); 
                 break;
             }
         }

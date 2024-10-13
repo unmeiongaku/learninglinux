@@ -1,0 +1,1 @@
+cmd_/home/desmtiny/workspace/bbproject/helloproject/hellobbkernel/main.mod := { echo  /home/desmtiny/workspace/bbproject/helloproject/hellobbkernel/main.o;  echo; } > /home/desmtiny/workspace/bbproject/helloproject/hellobbkernel/main.mod

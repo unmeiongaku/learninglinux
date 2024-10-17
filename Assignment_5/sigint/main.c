@@ -48,8 +48,7 @@ void printlog(){
         printf("    =>  FUNC_2: Catch SIGINT Or Crtl+C\n");
         printf("    =>  FUNC_3: Catch SIGKILL & SIGSTOP\n");
         printf("MODE_3: Ignore The Signal\n");
-        printf("    =>  FUNC_1: Perform The Default Action\n");
-        printf("    =>  FUNC_2: Perform The Default Action\n");
+        printf("    =>  FUNC_1: SIG_IGN\n");
 }
 
 int get_mode(const char *mode) {
@@ -245,7 +244,7 @@ int main(int argc, char const *argv[]){
             }
                 break;
             default:
-                printf("No Correct Value\n");
+                printf("UnCorrect Value\n");
                 exit(EXIT_FAILURE); 
                 break;
             }
@@ -254,6 +253,12 @@ int main(int argc, char const *argv[]){
     case MODE_3:
         {
             printf("MODE_3: Ignore The Signal\n");
+            signal(SIGINT, SIG_IGN);
+            printf("SIGINT has been Ignored\n");
+            while (1) {
+                printf("Doing Job\n");
+                sleep(1);
+            }
         }
         break;
     default:

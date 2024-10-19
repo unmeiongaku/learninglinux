@@ -5,6 +5,8 @@
         "stdio.h": "c",
         "pthread.h": "c",
         "typeinfo": "c",
-        "types.h": "c"
+        "types.h": "c",
+        "signal.h": "c",
+        "stddef.h": "c"
     }
 }

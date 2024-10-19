@@ -123,6 +123,23 @@ void set_current_sig(sigset_t *new_set, sigset_t *old_set, int sigquitnb,int sig
         exit(EXIT_FAILURE);
     }
     sigprocmask(SIG_SETMASK, new_set, old_set);
+
+    if (sigismember(new_set, SIGQUIT) == 1 ) {
+        printf("SIGQUIT exist\n");
+    } else if (sigismember(new_set, SIGQUIT) == 0) {
+        printf("SIGQUIT does not exist\n");
+    }
+    if (sigismember(new_set, SIGINT) == 1 ) {
+        printf("SIGINT exist\n");
+    } else if (sigismember(new_set, SIGINT) == 0) {
+        printf("SIGINT does not exist\n");
+    }
+    if (sigismember(new_set, SIGHUP) == 1 ) {
+        printf("SIGINT exist\n");
+    } else if (sigismember(new_set, SIGHUP) == 0) {
+        printf("SIGINT does not exist\n");
+    }
+    printf("************************\n");
 }
 
 static mode_func_t mf;

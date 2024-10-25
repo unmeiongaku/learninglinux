@@ -27,7 +27,7 @@
 void print_menu();
 int get_command(const char *cmd, int cmdnb);
 
-static void *receive_handle(void *args);
+static void *clients_connection_handle(void *args);
 static void *send_command_handle(void *args);
 
 
@@ -40,15 +40,18 @@ void print_menu(){
     printf("4. connect <destination> <port no>  : Display listening port of this app\n");
     printf("5. list                             : List all the connections of this app\n");
     printf("6. terminate <connection id>        : terminate the connections\n");
-    printf("7. send <connection id> <message>   : send a message to the connection\n");
+    printf("7. send <userid> <'message'>        : send a message to the connection\n");
     printf("8. exit                             : Close all connections & terminate this app\n");
     printf("9. clear                            : Clear dislay terminal\n");
     printf("\n******************************************************\n\n");
 }
 
 typedef struct{
+    char nickname[BUFF_SIZE];
+    int userid;
     char ip[INET_ADDRSTRLEN];  // Địa chỉ IP của client
     int port;                  // Port của client
+    int clients_socket_fd;
 }ClientInfo_t;
 
 typedef struct{
@@ -67,14 +70,20 @@ typedef struct{
     int client_fd; 
     int hostportnumber;
     bool AlreadyConnected;
+    bool UnblockingReceiveHostMsg;
     int command;
     int client_count;
     ClientInfo_t clients[MAX_CLIENTS];
 }app_server_client_t;
 
-void chat_func(app_server_client_t *app);
 
-pthread_t receive_thr, send_command_thr;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond_server  = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond_clients  = PTHREAD_COND_INITIALIZER;
+
+pthread_t clients_connection_thr, send_command_thr;
+
+pthread_t server_receive_chat_thr, clients_receive_chat_thr;
 
 static app_server_client_t appchat;
 
@@ -98,12 +107,73 @@ int get_command(const char *cmd, int cmdnb){
     }
 }
 
-void chat_func(app_server_client_t *app){
-    int numb_write, numb_read;
-    char recvbuff[BUFF_SIZE];
+void send_message(char *msg, app_server_client_t *app, int id){
+    int numb_write;
+    char sendbuff[BUFF_SIZE];
+    memset(sendbuff, '0', BUFF_SIZE);
+    strncpy(sendbuff, msg, BUFF_SIZE - 1);
+    numb_write = write(app->clients[id].clients_socket_fd, sendbuff, sizeof(sendbuff));
+    printf("Sent\n");
 }
 
-static void *receive_handle(void *args)
+void *chat_receive_clients_func(void *args){
+    app_server_client_t *app = (app_server_client_t *)args;
+    int numb_write, numb_read;
+    char recvbuff[BUFF_SIZE];
+    while(1){
+        pthread_cond_wait(&cond_server,&mutex);
+        memset(recvbuff, '0', BUFF_SIZE);
+        printf("chat_receive_clients_func blocking\n");
+        numb_read = read(app->new_socket_fd, recvbuff, sizeof(recvbuff));
+        if(numb_read == -1)
+            handle_error("read()");
+        if (strncmp("exit", recvbuff, 4) == 0) {
+            system("clear");
+            break;
+        }
+        char client_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(app->client_addr.sin_addr), client_ip, INET_ADDRSTRLEN);
+        printf("*******************************\n");
+        printf("* Message Received From Clients: %s\n",client_ip);
+        printf("* Sender's port: %d\n",app->client_addr.sin_port);
+        printf("* Message: %s\n",recvbuff);
+        printf("*******************************\n");
+    }
+    close(app->server_fd); /*close*/
+}
+
+void *chat_receive_server_func(void *args){
+    app_server_client_t *app = (app_server_client_t *)args;
+    int numb_write, numb_read;
+    char recvbuff[BUFF_SIZE];
+    while(1){
+        printf("chat_receive_server_func blocking\n");
+        if(app->UnblockingReceiveHostMsg == false){
+            pthread_cond_wait(&cond_clients,&mutex);
+        }
+        printf("chat_receive_server_func unblocking\n");
+        memset(recvbuff, '0', BUFF_SIZE);
+        numb_read = read(app->client_fd, recvbuff, sizeof(recvbuff));
+        if(numb_read == -1)
+            //handle_error("read()");
+        if (strncmp("exit", recvbuff, 4) == 0) {
+            system("clear");
+            break;
+        }
+        char host_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(app->client_send_addr.sin_addr), host_ip, INET_ADDRSTRLEN);
+        printf("*******************************\n");
+        printf("* Message Received From Host: %s\n",host_ip);
+        printf("* Host's port: %d\n",app->client_send_addr.sin_port);
+        printf("* Message: %s\n",recvbuff);
+        printf("*******************************\n");
+        app->UnblockingReceiveHostMsg = true;
+    }
+    close(app->client_fd); /*close*/
+}
+
+
+static void *clients_connection_handle(void *args)
 {
     app_server_client_t *app = (app_server_client_t *)args;
     int port = htons(app->port_no);
@@ -112,14 +182,15 @@ static void *receive_handle(void *args)
         app->new_socket_fd  = accept(app->server_fd, (struct sockaddr*)&app->client_addr, (socklen_t *)&app->len); 
         if (app->new_socket_fd == -1)
             handle_error("accept()");
-
-		//system("clear");
-        // printf("Server : got connection \n");  
+        pthread_cond_signal(&cond_server);
         inet_ntop(AF_INET, &app->client_addr.sin_addr, app->clients[app->client_count].ip, INET_ADDRSTRLEN);
         app->clients[app->client_count].port = ntohs(app->client_addr.sin_port);
+        snprintf(app->clients[app->client_count].nickname, BUFF_SIZE, "user%d", app->client_count);
+        app->clients[app->client_count].userid = app->client_count;
+        app->clients[app->client_count].clients_socket_fd = app->new_socket_fd;
         app->client_count++;
-        printf("New client connected: IP %s, Port %d\n", app->clients[app->client_count-1].ip, app->clients[app->client_count-1].port);
-            chat_func(app);
+        printf("New client connected: ID %d, NN %s, IP %s, Port %d\n",app->clients[app->client_count-1].userid,app->clients[app->client_count-1].nickname, app->clients[app->client_count-1].ip, app->clients[app->client_count-1].port);
+        app->AlreadyConnected = true;
     }
 }
 
@@ -133,7 +204,10 @@ static void *send_command_handle(void *args)
         char *command;
         char *destination;
         char *port;
+        int portclients;
         char *connectionid;
+        char *userid;
+        char *message;
         memset(commandbuff, 0, BUFF_SIZE);  // Đặt toàn bộ bộ nhớ về 0 thay vì '0'
         printf("chat-application$ ");
         fgets(commandbuff, BUFF_SIZE, stdin);
@@ -170,11 +244,38 @@ static void *send_command_handle(void *args)
             }
         }
         else if (command != NULL && strcmp(command, "send") == 0) {
-            connectionid = strtok(NULL, " ");
+            userid = strtok(NULL, " ");
+            message = strtok(NULL, "'"); // Tìm đến dấu nháy đơn đầu tiên
+            // Tìm dấu nháy đơn đầu tiên
+            char *start_quote = strchr(commandbuff, '\'');
+            if (start_quote != NULL) {
+                // Di chuyển con trỏ qua dấu nháy đơn đầu tiên
+                start_quote++;
+                // Tìm dấu nháy đơn cuối cùng
+                char *end_quote = strchr(start_quote, '\'');
+                if (end_quote != NULL) {
+                    *end_quote = '\0';  // Thêm ký tự kết thúc chuỗi
+                    message = start_quote;
+                }
+            }
             app->command = SEND_COMMAND_DEFINE;
-            if (connectionid != NULL) {
+
+            for(int i=0; i<=MAX_CLIENTS;i++){
+                if(app->clients[i].userid == atoi(userid)){
+                    destination = app->clients[i].ip;
+                    portclients = app->clients[i].port;
+                    break;
+                }
+            }
+
+            if (userid != NULL) {
+                printf("*******************************\n");
                 printf("Command: %s\n", command);
-                printf("Connection id: %s\n", connectionid);
+                printf("user id: %d\n", atoi(userid));
+                printf("Message: %s\n", message);
+                printf("IP: %s\n",destination);
+                printf("Port: %d\n",portclients);
+                printf("*******************************\n");
             } else {
                 printf("Invalid command format. Usage: send <Connection id>\n");
             }
@@ -216,19 +317,18 @@ static void *send_command_handle(void *args)
                         handle_error("connect()");
                 }
                 else{
-                    printf("Server Already Connect To Server\n");
+                    printf("App-chat Already Connect To Host Server\n");
                 }
-
-                
+                pthread_cond_signal(&cond_clients);
             }
                 break;
             case LIST_COMMAND_DEFINE:
             {
                 printf("********************************************\n");
-                printf("ID |       IP Address      |       Port No.\n");
+                printf("ID |       IP Address      |     Port No.\n");
                 if(app->client_count>0){
                     for(int i=0;i<app->client_count;i++){
-                        printf("%d  |    %s    |       %d\n",i,app->clients[i].ip,app->clients[i].port);
+                        printf("%d  |    %s    |       %d\n",app->clients[i].userid,app->clients[i].ip,app->clients[i].port);
                     }  
                 }
                 else{
@@ -245,10 +345,10 @@ static void *send_command_handle(void *args)
             case SEND_COMMAND_DEFINE:
             {
                 if(app->AlreadyConnected == true){
-                    
-
+                    pthread_cond_signal(&cond_clients);
+                    send_message(message,app,atoi(userid));
                 }else{
-                    printf("Please Connect  To Any Host Server\n");
+                    printf("Please Connect To Any Host Server\n");
                 }
 
 
@@ -281,6 +381,7 @@ int main(int argc, char *argv[]){
        appchat.port_no = atoi(argv[1]); 
     }
     appchat.AlreadyConnected = false;
+    appchat.UnblockingReceiveHostMsg = false;
     appchat.client_count = 0;
     /* Tạo socket */
     appchat.server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -310,7 +411,7 @@ int main(int argc, char *argv[]){
 
     int ret = 0;
 
-    if (ret = pthread_create(&receive_thr, NULL, &receive_handle, &appchat)) {
+    if (ret = pthread_create(&clients_connection_thr, NULL, &clients_connection_handle, &appchat)) {
             printf("pthread_create() error number=%d\n", ret);
             return -1;
     }
@@ -321,8 +422,25 @@ int main(int argc, char *argv[]){
             return -1;
     }
 
+    usleep(100);
+
+    if (ret = pthread_create(&server_receive_chat_thr, NULL, &chat_receive_server_func, &appchat)) {
+            printf("pthread_create() error number=%d\n", ret);
+            return -1;
+    }
+
+    usleep(100);    
+
+    if (ret = pthread_create(&clients_receive_chat_thr, NULL, &chat_receive_clients_func, &appchat)) {
+            printf("pthread_create() error number=%d\n", ret);
+            return -1;
+    }
+
     pthread_join(send_command_thr,NULL); 
-    pthread_join(receive_thr,NULL); 
+    pthread_join(clients_connection_thr,NULL); 
+    pthread_join(server_receive_chat_thr,NULL); 
+    pthread_join(clients_receive_chat_thr,NULL); 
+
 
     while(1);
 
